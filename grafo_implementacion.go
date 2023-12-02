@@ -12,8 +12,30 @@ type grafo[K comparable] struct {
 	dirigido    bool
 }
 
-func CrearGrafo[K comparable](dirigido bool) Grafo[K] {
+func CrearGrafoPesado[K comparable](dirigido bool) GrafoPesado[K] {
 	return &grafo[K]{vertices: TDADICC.CrearHash[K, K](), adyacencias: TDADICC.CrearHash[K, *TDADICC.Diccionario[K, int]](), dirigido: dirigido}
+}
+
+func CrearGrafoNoPesado[K comparable](dirigido bool) GrafoNoPesado[K] {
+	return &grafo[K]{vertices: TDADICC.CrearHash[K, K](), adyacencias: TDADICC.CrearHash[K, *TDADICC.Diccionario[K, int]](), dirigido: dirigido}
+
+}
+
+func (g *grafo[K]) panicSiNoPerteneceVertice(v K) {
+	if !g.vertices.Pertenece(v) {
+		panic("El vertice no pertenece al grafo")
+	}
+}
+
+func (g *grafo[K]) panicSiNoPerteneceArista(v, w K) {
+	g.panicSiNoPerteneceVertice(v)
+	if !(*g.adyacencias.Obtener(v)).Pertenece(w) {
+		panic("La arista no pertenece al grafo")
+	}
+}
+
+func (g *grafo[K]) EsVertice(v K) bool {
+	return g.vertices.Pertenece(v)
 }
 
 func (g *grafo[K]) AgregarVertice(vertice K) {
@@ -26,26 +48,26 @@ func (g *grafo[K]) AgregarVertice(vertice K) {
 }
 
 func (g *grafo[K]) AgregarArista(v, w K, peso int) {
-	panicSiNoPerteneceVertice[K](v, g)
-	panicSiNoPerteneceVertice[K](w, g)
+	g.panicSiNoPerteneceVertice(v)
+	g.panicSiNoPerteneceVertice(w)
 	(*g.adyacencias.Obtener(v)).Guardar(w, peso)
 	if !g.dirigido {
 		(*g.adyacencias.Obtener(w)).Guardar(v, peso)
 	}
 }
 
-func (g *grafo[K]) EstanUnidos(v, w K) bool {
-	panicSiNoPerteneceVertice[K](v, g)
-	panicSiNoPerteneceVertice[K](w, g)
-	if g.dirigido {
-		return g.adyacencias.Pertenece(v) && (*g.adyacencias.Obtener(v)).Pertenece(w)
-	} else {
-		return g.adyacencias.Pertenece(v) && (*g.adyacencias.Obtener(v)).Pertenece(w) || g.adyacencias.Pertenece(w) && (*g.adyacencias.Obtener(w)).Pertenece(v)
-	}
+func (g *grafo[K]) AgregarAristaNP(v, w K) {
+	g.AgregarArista(v, w, 1)
+}
+
+func (g *grafo[K]) HayArista(v, w K) bool {
+	g.panicSiNoPerteneceVertice(v)
+	g.panicSiNoPerteneceVertice(w)
+	return (*g.adyacencias.Obtener(v)).Pertenece(w)
 }
 
 func (g *grafo[K]) Adyacente(v K) []K {
-	panicSiNoPerteneceVertice[K](v, g)
+	g.panicSiNoPerteneceVertice(v)
 	res := []K{}
 	for iter := (*g.adyacencias.Obtener(v)).Iterador(); iter.HaySiguiente(); iter.Siguiente() {
 		adyacente, _ := iter.VerActual()
@@ -55,31 +77,35 @@ func (g *grafo[K]) Adyacente(v K) []K {
 }
 
 func (g *grafo[K]) SacarArista(v, w K) {
-	panicSiNoPerteneceArista[K](v, w, g)
+	g.panicSiNoPerteneceArista(v, w)
 	(*g.adyacencias.Obtener(v)).Borrar(w)
 	if !g.dirigido {
-		panicSiNoPerteneceArista[K](w, v, g)
 		(*g.adyacencias.Obtener(w)).Borrar(v)
 	}
 }
 
 func (g *grafo[K]) SacarVertice(v K) {
-	panicSiNoPerteneceVertice[K](v, g)
-	if !g.adyacencias.Pertenece(v) {
-		panic("El vertice no pertenece al grafo")
-	}
+	g.panicSiNoPerteneceVertice(v)
+	g.vertices.Borrar(v)
 	g.adyacencias.Borrar(v)
+
+	for iterV := g.adyacencias.Iterador(); iterV.HaySiguiente(); iterV.Siguiente() {
+		_, dicW := iterV.VerActual()
+		if (*dicW).Pertenece(v) {
+			(*dicW).Borrar(v)
+		}
+	}
 }
 
 func (g *grafo[K]) PesoArista(v, w K) int {
-	panicSiNoPerteneceArista[K](v, w, g)
+	g.panicSiNoPerteneceArista(v, w)
 	return (*g.adyacencias.Obtener(v)).Obtener(w)
 }
 
 func (g *grafo[K]) ObtenerVertices() []K {
 	res := []K{}
-	for i := g.vertices.Iterador(); i.HaySiguiente(); i.Siguiente() {
-		v, _ := i.VerActual()
+	for iter := g.vertices.Iterador(); iter.HaySiguiente(); iter.Siguiente() {
+		v, _ := iter.VerActual()
 		res = append(res, v)
 	}
 	return res
@@ -91,23 +117,12 @@ func (g *grafo[K]) VerticeAleatorio() K {
 	return vertices[num]
 }
 
-func panicSiNoPerteneceArista[K comparable](v, w K, g *grafo[K]) {
-	if !g.vertices.Pertenece(v) {
-		panic("El vertice no pertenece al grafo")
-	}
-	if !(*g.adyacencias.Obtener(v)).Pertenece(w) {
-		panic("La arista no pertenece al grafo")
-	}
-}
-
-func panicSiNoPerteneceVertice[K comparable](v K, g *grafo[K]) {
-	if !g.vertices.Pertenece(v) {
-		panic("El vertice no pertenece al grafo")
-	}
-}
-
 func (g *grafo[K]) Dirigido() bool {
 	return g.dirigido
+}
+
+func (g *grafo[K]) Cantidad() int {
+	return g.vertices.Cantidad()
 }
 
 func (g *grafo[K]) Imprimir() {
