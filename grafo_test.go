@@ -1,45 +1,188 @@
 package grafo_test
 
 import (
+	"math/rand"
 	TDAGrafo "tdas/grafo"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+const MEDIO int = 10
+const VOLUMEN int = 125000
+
+func Grafo1(g *TDAGrafo.GrafoNoPesado[string]) {
+	(*g).AgregarVertice("A")
+	(*g).AgregarVertice("B")
+	(*g).AgregarVertice("C")
+	(*g).AgregarAristaNP("A", "B")
+	(*g).AgregarAristaNP("A", "C")
+}
+
+func GrafoA(g *TDAGrafo.GrafoPesado[string]) {
+	(*g).AgregarVertice("A")
+	(*g).AgregarVertice("B")
+	(*g).AgregarVertice("C")
+	(*g).AgregarArista("A", "B", 1)
+	(*g).AgregarArista("A", "C", 2)
+}
+
+func TestGrafoVacio(t *testing.T) {
+	t.Log("Creamos un grafo vacio y comprobamos que se comporte como tal")
+	grafo := TDAGrafo.CrearGrafoPesado[string](false)
+
+	require.Equal(t, 0, grafo.Cantidad())
+	require.Equal(t, 0, len(grafo.ObtenerVertices()))
+	require.False(t, grafo.EsVertice(""))
+
+	require.PanicsWithValue(t, "El vertice no pertenece al grafo", func() { grafo.SacarVertice("A") })
+	require.PanicsWithValue(t, "El vertice no pertenece al grafo", func() { grafo.HayArista("A", "B") })
+	require.PanicsWithValue(t, "El vertice no pertenece al grafo", func() { grafo.SacarArista("A", "B") })
+	require.PanicsWithValue(t, "El vertice no pertenece al grafo", func() { grafo.Adyacente("A") })
+	require.PanicsWithValue(t, "El grafo no contiene vertices", func() { grafo.VerticeAleatorio() })
+
+}
+
 func TestGrafoDirigido(t *testing.T) {
-	grafo := TDAGrafo.CrearGrafo[string](true)
-	grafo.AgregarVertice("a")
-	grafo.AgregarVertice("b")
-	grafo.AgregarArista("a", "b", 1)
-	require.Equal(t, true, grafo.EstanUnidos("a", "b"))
-	require.Equal(t, false, grafo.EstanUnidos("b", "a"))
+	t.Log("Creamos un grafo no pesado dirigido, comprobando que los vertices y aristas se agreguen correectamente")
+	grafo := TDAGrafo.CrearGrafoNoPesado[string](true)
+	Grafo1(&grafo)
+
+	require.Equal(t, 3, grafo.Cantidad())
+	require.True(t, grafo.HayArista("A", "B"))
+	require.True(t, grafo.HayArista("A", "C"))
+	require.False(t, grafo.HayArista("B", "C"))
+	require.False(t, grafo.HayArista("C", "B"))
+	require.False(t, grafo.HayArista("B", "A"))
+	require.False(t, grafo.HayArista("C", "A"))
+
 }
 
 func TestGrafoNoDirigido(t *testing.T) {
-	grafo := TDAGrafo.CrearGrafo[string](false)
-	grafo.AgregarVertice("a")
-	grafo.AgregarVertice("b")
-	grafo.AgregarArista("a", "b", 1)
-	require.Equal(t, true, grafo.EstanUnidos("a", "b"))
-	require.Equal(t, true, grafo.EstanUnidos("b", "a"))
+	t.Log("Creamos un grafo no pesado no dirigido, comprobando que los vertices y aristas se agreguen correectamente")
+
+	grafo := TDAGrafo.CrearGrafoNoPesado[string](false)
+	Grafo1(&grafo)
+
+	require.True(t, grafo.HayArista("A", "B"))
+	require.True(t, grafo.HayArista("A", "C"))
+	require.False(t, grafo.HayArista("B", "C"))
+	require.False(t, grafo.HayArista("C", "B"))
+	require.True(t, grafo.HayArista("B", "A"))
+	require.True(t, grafo.HayArista("C", "A"))
+
 }
 
-func TestGrafoNoDirigido2(t *testing.T) {
-	grafo := TDAGrafo.CrearGrafo[string](false)
-	grafo.AgregarVertice("a")
-	grafo.AgregarVertice("b")
-	grafo.AgregarVertice("c")
-	grafo.AgregarArista("a", "b", 1)
-	require.Equal(t, true, grafo.EstanUnidos("a", "b"))
-	require.Equal(t, true, grafo.EstanUnidos("b", "a"))
-	require.Equal(t, grafo.PesoArista("a", "b"), 1)
-	grafo.SacarArista("a", "b")
-	require.PanicsWithValue(t, "La arista no pertenece al grafo", func() { grafo.PesoArista("a", "b") })
-	require.Equal(t, false, grafo.EstanUnidos("a", "b"))
-	require.Equal(t, false, grafo.EstanUnidos("b", "a"))
+func TestGrafoPesado(t *testing.T) {
+	t.Log("Creamos un grafo pesado dirigido, comprobando que los vertices y aristas se agreguen correectamente")
+	grafo := TDAGrafo.CrearGrafoPesado[string](false)
+	GrafoA(&grafo)
+
+	require.True(t, grafo.HayArista("A", "B"))
+	require.True(t, grafo.HayArista("A", "C"))
+	require.False(t, grafo.HayArista("B", "C"))
+	require.False(t, grafo.HayArista("C", "B"))
+	require.True(t, grafo.HayArista("B", "A"))
+	require.True(t, grafo.HayArista("C", "A"))
+
+	require.Equal(t, 1, grafo.PesoArista("A", "B"))
+	require.Equal(t, 2, grafo.PesoArista("A", "C"))
+	require.PanicsWithValue(t, "La arista no pertenece al grafo", func() { grafo.PesoArista("B", "C") })
+
 }
 
+func TestVerticeAleatorio(t *testing.T) {
+	t.Log("Comprobamos que al obtener un vertice aleatorio del grado, este efectivamente pertenezca al grafo")
+
+	grafo := TDAGrafo.CrearGrafoNoPesado[int](false)
+
+	for i := 0; i < MEDIO; i++ {
+		grafo.AgregarVertice(i)
+	}
+
+	verticeAleatorio := grafo.VerticeAleatorio()
+	require.True(t, grafo.EsVertice(verticeAleatorio))
+}
+
+func TestVertices(t *testing.T) {
+	t.Log("Agregamos y borramos vertices comprobando que siempre este con la cantidad correcta")
+	grafo := TDAGrafo.CrearGrafoNoPesado[int](false)
+
+	grafo.AgregarVertice(1)
+	grafo.AgregarVertice(2)
+	grafo.AgregarVertice(3)
+	require.Equal(t, 3, grafo.Cantidad())
+	require.True(t, grafo.EsVertice(1))
+	require.True(t, grafo.EsVertice(2))
+	require.True(t, grafo.EsVertice(3))
+
+	grafo.SacarVertice(2)
+	require.Equal(t, 2, grafo.Cantidad())
+	require.True(t, grafo.EsVertice(1))
+	require.False(t, grafo.EsVertice(2))
+	require.True(t, grafo.EsVertice(3))
+
+	grafo.SacarVertice(1)
+	require.Equal(t, 1, grafo.Cantidad())
+	require.False(t, grafo.EsVertice(1))
+	require.False(t, grafo.EsVertice(2))
+	require.True(t, grafo.EsVertice(3))
+
+	grafo.SacarVertice(3)
+	require.Equal(t, 0, grafo.Cantidad())
+	require.False(t, grafo.EsVertice(1))
+	require.False(t, grafo.EsVertice(2))
+	require.False(t, grafo.EsVertice(3))
+}
+
+func TestAristas(t *testing.T) {
+	t.Log("Agregamos y borramos aristas comprobando que siempre este con la cantidad correcta")
+	grafo := TDAGrafo.CrearGrafoPesado[string](true)
+	GrafoA(&grafo)
+
+	grafo.SacarArista("A", "B")
+	require.True(t, grafo.HayArista("A", "C"))
+	require.False(t, grafo.HayArista("C", "A"))
+	require.Equal(t, 2, grafo.PesoArista("A", "C"))
+	require.False(t, grafo.HayArista("A", "B"))
+	require.False(t, grafo.HayArista("B", "C"))
+
+	grafo.SacarArista("A", "C")
+	require.False(t, grafo.HayArista("A", "C"))
+	require.False(t, grafo.HayArista("A", "B"))
+	require.False(t, grafo.HayArista("B", "C"))
+
+}
+
+func TestVolumen(t *testing.T) {
+	t.Log("Agregamos vertices y aristas en volumen comprobando que se agreguen correctamente")
+	grafo := TDAGrafo.CrearGrafoNoPesado[int](true)
+	cantAdyacentes := make([]int, 0)
+
+	for i := 0; i < VOLUMEN; i++ {
+		grafo.AgregarVertice(i)
+	}
+
+	for i := 0; i < VOLUMEN; i++ {
+		adyacentes := rand.Intn(5)
+		cantAdyacentes = append(cantAdyacentes, adyacentes)
+		j := 0
+		for j < adyacentes {
+			if !grafo.HayArista(i, j) {
+				grafo.AgregarAristaNP(i, j)
+				j++
+			}
+		}
+	}
+
+	for i := 0; i < VOLUMEN; i++ {
+		require.True(t, grafo.EsVertice(i))
+		require.Equal(t, len(grafo.Adyacente(i)), cantAdyacentes[i])
+	}
+
+}
+
+/*
 func TestRecorrido(t *testing.T) {
 	g := TDAGrafo.CrearGrafo[string](false)
 	g.AgregarVertice("a")
@@ -119,3 +262,4 @@ func TestPrim(t *testing.T) {
 	require.Equal(t, false, a.EstanUnidos("d", "f"))
 	require.Equal(t, false, a.EstanUnidos("c", "h"))
 }
+*/

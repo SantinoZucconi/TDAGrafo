@@ -38,6 +38,7 @@ type Grafo[K comparable] interface {
 
 type GrafoNoPesado[K comparable] interface {
 	Grafo[K]
+
 	// AgregarAristaNP crea una arista que une el primer vertice pasado por parametro con el segundo
 	AgregarAristaNP(K, K)
 }

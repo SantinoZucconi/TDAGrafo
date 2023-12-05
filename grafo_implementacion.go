@@ -112,6 +112,9 @@ func (g *grafo[K]) ObtenerVertices() []K {
 }
 
 func (g *grafo[K]) VerticeAleatorio() K {
+	if g.Cantidad() == 0 {
+		panic("El grafo no contiene vertices")
+	}
 	vertices := g.ObtenerVertices()
 	num := rand.Intn(len(vertices))
 	return vertices[num]
