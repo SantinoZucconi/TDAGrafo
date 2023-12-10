@@ -191,23 +191,25 @@ func Diametro[K comparable](g TDAGrafo.GrafoNoPesado[K]) TDALista.Lista[K] {
 	diametro := 0
 	var verticeInicio, verticeMasLejos K
 	var padresDiametro TDADicc.Diccionario[K, K]
+	var diametroMayor bool
 
 	vertices := g.ObtenerVertices()
-	for i := 0; i < g.Cantidad(); i++ {
-		v := vertices[i]
-		padres, orden := BFS(g, v, func(vertice K, orden TDADicc.Diccionario[K, int]) bool {
+	for _, v := range vertices {
+		diametroMayor = false
+		padres, _ := BFS(g, v, func(vertice K, orden TDADicc.Diccionario[K, int]) bool {
+			if orden.Obtener(vertice) > diametro {
+				verticeInicio = v
+				verticeMasLejos = vertice
+				diametro = orden.Obtener(vertice)
+				diametroMayor = true
+			}
 			return false
 		})
 
-		for iter := orden.Iterador(); iter.HaySiguiente(); iter.Siguiente() {
-			w, n := iter.VerActual()
-			if n > diametro {
-				verticeInicio = v
-				verticeMasLejos = w
-				diametro = n
-				padresDiametro = padres
-			}
+		if diametroMayor {
+			padresDiametro = padres
 		}
+
 	}
 
 	camino, _ := ReconstruirCamino(padresDiametro, verticeInicio, verticeMasLejos)
@@ -561,42 +563,38 @@ func CicloN[K comparable](g TDAGrafo.GrafoNoPesado[K], pagina K, saltos int) (TD
 			}
 		}
 	}
-	return dfs_cicloN[K](subgrafo, pagina, pagina, saltos)
+	return dfs_cicloN[K](subgrafo, pagina, saltos)
 }
 
-func dfs_cicloN[K comparable](g TDAGrafo.Grafo[K], origen, destino K, dist int) (TDALista.Lista[K], error) {
+func dfs_cicloN[K comparable](g TDAGrafo.Grafo[K], origen K, dist int) (TDALista.Lista[K], error) {
 	var none K
-	var camino TDALista.Lista[K]
-	for _, w := range g.Adyacente(origen) {
-		padres := TDADicc.CrearHash[K, K]()
-		visitados := TDADicc.CrearHash[K, bool]()
-		padres.Guardar(origen, none)
-		padres.Guardar(w, origen)
-		var hayCamino bool
-
-		_dfs_cicloN_aux[K](g, 1, dist, w, destino, padres, &camino, &hayCamino, visitados)
-		if hayCamino {
-			return camino, nil
-		}
-	}
-	return camino, &ERROR.ErrorNoExisteRecorrido{}
+	padres := TDADicc.CrearHash[K, K]()
+	visitados := TDADicc.CrearHash[K, bool]()
+	padres.Guardar(origen, none)
+	return _dfs_cicloN_aux[K](g, 1, dist, origen, origen, padres, visitados)
 }
 
-func _dfs_cicloN_aux[K comparable](g TDAGrafo.Grafo[K], contador, n int, v, destino K, padres TDADicc.Diccionario[K, K], camino *TDALista.Lista[K], hayCamino *bool, visitados TDADicc.Diccionario[K, bool]) {
+func _dfs_cicloN_aux[K comparable](g TDAGrafo.Grafo[K], contador, n int, v, destino K, padres TDADicc.Diccionario[K, K], visitados TDADicc.Diccionario[K, bool]) (TDALista.Lista[K], error) {
 	visitados.Guardar(v, true)
-	if contador == n && v == destino {
-		cam, _ := ReconstruirCamino[K](padres, destino, padres.Obtener(v))
-		cam.InsertarUltimo(v)
-		*hayCamino = true
-		*camino = cam
+	if contador == n {
+		for _, w := range g.Adyacente(v) {
+			if w == destino {
+				camino, err := ReconstruirCamino[K](padres, destino, v)
+				camino.InsertarUltimo(w)
+				return camino, err
+			}
+		}
 	} else {
-		lista := g.Adyacente(v)
-		for _, w := range lista {
+		for _, w := range g.Adyacente(v) {
 			if !visitados.Pertenece(w) {
 				padres.Guardar(w, v)
-				_dfs_cicloN_aux[K](g, contador+1, n, w, destino, padres, camino, hayCamino, visitados)
+				solucion, err := _dfs_cicloN_aux[K](g, contador+1, n, w, destino, padres, visitados)
+				if err == nil {
+					return solucion, err
+				}
 			}
 		}
 	}
 	visitados.Borrar(v)
+	return TDALista.CrearListaEnlazada[K](), &ERROR.ErrorNoExisteRecorrido{}
 }
