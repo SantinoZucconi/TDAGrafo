@@ -5,11 +5,14 @@ import (
 	TDAHeap "tdas/cola_prioridad"
 	TDADicc "tdas/diccionario"
 	TDAGrafo "tdas/grafo"
+	TDALista "tdas/lista"
 	TDAPila "tdas/pila"
 	ERROR "tp3/errores"
 )
 
 const d float64 = 0.85
+const MAX_ITERACIONES int = 300
+const MIN_DIFPORCENTUAL float64 = 1
 
 func min(x, y int) int {
 	if x < y {
@@ -122,27 +125,24 @@ func GradoDeSalida[K comparable](g TDAGrafo.GrafoNoPesado[K]) TDADicc.Diccionari
 	return grSalida
 }
 
-func ReconstruirCamino[K comparable](padres TDADicc.Diccionario[K, K], in, fin K) ([]K, error) {
-	p := TDAPila.CrearPilaDinamica[K]()
+func ReconstruirCamino[K comparable](padres TDADicc.Diccionario[K, K], in, fin K) (TDALista.Lista[K], error) {
+	lista := TDALista.CrearListaEnlazada[K]()
+
+	if !padres.Pertenece(fin) {
+		return lista, &ERROR.ErrorNoExisteRecorrido{}
+	}
 	v := fin
-	res := []K{}
 	for v != in {
-		p.Apilar(v)
-		if !padres.Pertenece(v) {
-			return []K{}, &ERROR.ErrorNoExisteRecorrido{}
-		}
+		lista.InsertarPrimero(v)
 		v = padres.Obtener(v)
 	}
-	p.Apilar(in)
-	for !p.EstaVacia() {
-		res = append(res, p.Desapilar())
-	}
-	return res, nil
+	lista.InsertarPrimero(v)
+	return lista, nil
 }
 
 ////
 
-func CaminoMinimo[K comparable](g TDAGrafo.GrafoNoPesado[K], origen, destino K) ([]K, error) {
+func CaminoMinimo[K comparable](g TDAGrafo.GrafoNoPesado[K], origen, destino K) (TDALista.Lista[K], error) {
 	padres, _ := BFS(g, origen, func(vertice K, orden TDADicc.Diccionario[K, int]) bool {
 		return vertice == destino
 	})
@@ -166,17 +166,18 @@ func TodosEnRango[K comparable](g TDAGrafo.GrafoNoPesado[K], origen K, rango int
 	return contador
 }
 
-func NavegacionPrimerLink[K comparable](g TDAGrafo.GrafoNoPesado[K], primerosLinks TDADicc.Diccionario[K, K], inicio K) []K {
+func NavegacionPrimerLink[K comparable](g TDAGrafo.GrafoNoPesado[K], primerosLinks TDADicc.Diccionario[K, K], inicio K) TDALista.Lista[K] {
 	v := inicio
 	contador := 0
 	hayLinks := true
-	camino := []K{v}
+	camino := TDALista.CrearListaEnlazada[K]()
+	camino.InsertarUltimo(inicio)
 	contador++
 
 	for contador < 21 && hayLinks {
 		if primerosLinks.Pertenece(v) {
 			v = primerosLinks.Obtener(v)
-			camino = append(camino, v)
+			camino.InsertarUltimo(v)
 			contador++
 		} else {
 			hayLinks = false
@@ -186,7 +187,7 @@ func NavegacionPrimerLink[K comparable](g TDAGrafo.GrafoNoPesado[K], primerosLin
 	return camino
 }
 
-func Diametro[K comparable](g TDAGrafo.GrafoNoPesado[K]) []K {
+func Diametro[K comparable](g TDAGrafo.GrafoNoPesado[K]) TDALista.Lista[K] {
 	diametro := 0
 	var verticeInicio, verticeMasLejos K
 	var padresDiametro TDADicc.Diccionario[K, K]
@@ -236,24 +237,22 @@ func _dfs_cfc[K comparable](g TDAGrafo.GrafoNoPesado[K], v K, visitados, apilado
 	}
 
 	if orden.Obtener(v) == masbajo.Obtener(v) {
-		fin := false
+		finCFC := false
 		nueva_cfc := TDADicc.CrearHash[K, K]()
-		for !fin {
-			max := pila.VerTope()
+		for !finCFC {
+			max := pila.Desapilar()
+			apilados.Borrar(max)
 			if max == v {
-				fin = true
+				finCFC = true
 			}
 			nueva_cfc.Guardar(max, max)
-			apilados.Borrar(max)
-			pila.Desapilar()
 		}
-
 		*cfc = append(*cfc, nueva_cfc)
 	}
 
 }
 
-func CFC[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([][]K, TDADicc.Diccionario[K, int]) {
+func CFC[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([]TDALista.Lista[K], TDADicc.Diccionario[K, int]) {
 	var v K
 
 	orden := TDADicc.CrearHash[K, int]()
@@ -265,7 +264,7 @@ func CFC[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([][]K, TDADicc.Diccionario[
 	cfc := make([]TDADicc.Diccionario[K, K], 0)
 	pertenencia := TDADicc.CrearHash[K, int]()
 
-	listas := make([][]K, 0)
+	listas := make([]TDALista.Lista[K], 0)
 
 	cont := 0
 	contador_global := &cont
@@ -289,10 +288,10 @@ func CFC[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([][]K, TDADicc.Diccionario[
 	}
 
 	for d := 0; d < len(cfc); d++ {
-		lista := make([]K, 0)
+		lista := TDALista.CrearListaEnlazada[K]()
 		comp := cfc[d]
 		comp.Iterar(func(clave, dato K) bool {
-			lista = append(lista, clave)
+			lista.InsertarUltimo(clave)
 			return true
 		})
 		listas = append(listas, lista)
@@ -301,9 +300,10 @@ func CFC[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([][]K, TDADicc.Diccionario[
 	return listas, pertenencia
 }
 
-func Comunidades[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDADicc.Diccionario[K, int], TDADicc.Diccionario[int, []K]) {
+func Comunidades[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDADicc.Diccionario[K, int], TDADicc.Diccionario[int, TDALista.Lista[K]]) {
 	label := TDADicc.CrearHash[K, int]()
-	_comunidades := TDADicc.CrearHash[int, []K]()
+	var comunidad TDALista.Lista[K]
+	_comunidades := TDADicc.CrearHash[int, TDALista.Lista[K]]()
 	vEntradas := vertices_entrada[K](g)
 	for i, v := range g.ObtenerVertices() {
 		label.Guardar(v, i)
@@ -318,7 +318,7 @@ func Comunidades[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDADicc.Diccionario
 				if vEntradas.Pertenece(v) {
 					colaAdy := vEntradas.Obtener(v)
 					for !colaAdy.EstaVacia() {
-						labelNeighbor = append(labelNeighbor, label.Obtener(colaAdy.Desencolar()))
+						labelNeighbor = append(labelNeighbor, label.Obtener(colaAdy.BorrarPrimero()))
 					}
 				}
 			}
@@ -328,10 +328,12 @@ func Comunidades[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDADicc.Diccionario
 	}
 	label.Iterar(func(clave K, dato int) bool {
 		if !_comunidades.Pertenece(dato) {
-			_comunidades.Guardar(dato, []K{clave})
+			comunidad = TDALista.CrearListaEnlazada[K]()
+			comunidad.InsertarPrimero(clave)
+			_comunidades.Guardar(dato, comunidad)
 		} else {
-			comunidad := _comunidades.Obtener(dato)
-			comunidad = append(comunidad, clave)
+			comunidad = _comunidades.Obtener(dato)
+			comunidad.InsertarUltimo(clave)
 			_comunidades.Guardar(dato, comunidad)
 		}
 		return true
@@ -359,14 +361,15 @@ func max_freq(arr []int) int {
 	return maxLabel
 }
 
-func vertices_entrada[K comparable](g TDAGrafo.Grafo[K]) TDADicc.Diccionario[K, TDACola.Cola[K]] {
-	verticesEntrada := TDADicc.CrearHash[K, TDACola.Cola[K]]()
+func vertices_entrada[K comparable](g TDAGrafo.GrafoNoPesado[K]) TDADicc.Diccionario[K, TDALista.Lista[K]] {
+	verticesEntrada := TDADicc.CrearHash[K, TDALista.Lista[K]]()
+	for _, v := range g.ObtenerVertices() {
+		verticesEntrada.Guardar(v, TDALista.CrearListaEnlazada[K]())
+	}
+
 	for _, v := range g.ObtenerVertices() {
 		for _, w := range g.Adyacente(v) {
-			if !verticesEntrada.Pertenece(w) {
-				verticesEntrada.Guardar(w, TDACola.CrearColaEnlazada[K]())
-			}
-			verticesEntrada.Obtener(w).Encolar(v)
+			verticesEntrada.Obtener(w).InsertarUltimo(v)
 		}
 	}
 	return verticesEntrada
@@ -410,12 +413,14 @@ func ClusteringRed[K comparable](g TDAGrafo.GrafoNoPesado[K]) float64 {
 
 ////
 
-func PageRank[K comparable](g TDAGrafo.GrafoNoPesado[K]) []K {
+func PageRank[K comparable](g TDAGrafo.GrafoNoPesado[K]) TDALista.Lista[K] {
 	vertices := g.ObtenerVertices()
 	cantidadVertices := g.Cantidad()
-	pageRanks := TDADicc.CrearHash[K, float64]()
-	pageRanksActualizados := TDADicc.CrearHash[K, float64]()
-	pageOrdenadas := make([]K, 0)
+	pageRanks := TDADicc.CrearHash[K, []float64]()
+	entradas := vertices_entrada(g)
+	gradoSalidas := GradoDeSalida(g)
+	pageOrdenadas := TDALista.CrearListaEnlazada[K]()
+	contador := 0
 
 	heap := TDAHeap.CrearHeap[verticePR[K]](func(v1, v2 verticePR[K]) int {
 		comp := v1.pageRank - v2.pageRank
@@ -429,58 +434,57 @@ func PageRank[K comparable](g TDAGrafo.GrafoNoPesado[K]) []K {
 
 	for i := 0; i < cantidadVertices; i++ {
 		v := vertices[i]
-		pageRanks.Guardar(v, 1)
+		pageRanks.Guardar(v, []float64{1})
 	}
 
 	seguirIterando := true
 
-	for seguirIterando {
+	for seguirIterando && contador < MAX_ITERACIONES {
 		seguirIterando = false
 		for k := 0; k < cantidadVertices; k++ {
 			v := vertices[k]
-			prNuevo := _arrastrePR(g, v, vertices, cantidadVertices, pageRanks)
-			pageRanksActualizados.Guardar(v, prNuevo)
-			if difPorcentual(pageRanks.Obtener(v), prNuevo) > 5 {
+			prNuevo := _arrastrePR(gradoSalidas, v, cantidadVertices, pageRanks, contador, entradas.Obtener(v))
+			if difPorcentual(pageRanks.Obtener(v)[contador], prNuevo) > MIN_DIFPORCENTUAL && !seguirIterando {
 				seguirIterando = true
 			}
+			prPagina := pageRanks.Obtener(v)
+			prPagina = append(prPagina, prNuevo)
+			pageRanks.Guardar(v, prPagina)
 		}
 
-		pageRanksActualizados.Iterar(func(clave K, dato float64) bool {
-			pageRanks.Guardar(clave, dato)
-			return true
-		})
+		contador++
 	}
 
-	pageRanks.Iterar(func(clave K, dato float64) bool {
-		heap.Encolar(verticePR[K]{clave, dato})
+	pageRanks.Iterar(func(clave K, dato []float64) bool {
+		pr := dato[contador]
+		heap.Encolar(verticePR[K]{clave, pr})
 		return true
 	})
 
 	for !heap.EstaVacia() {
-		pageOrdenadas = append(pageOrdenadas, heap.Desencolar().vertice)
+		pageOrdenadas.InsertarUltimo(heap.Desencolar().vertice)
 	}
 
 	return pageOrdenadas
 }
 
-func _arrastrePR[K comparable](g TDAGrafo.GrafoNoPesado[K], vertice K, vertices []K, N int, pageRanks TDADicc.Diccionario[K, float64]) float64 {
+func _arrastrePR[K comparable](gradoSalidas TDADicc.Diccionario[K, int], vertice K, N int, pageRanks TDADicc.Diccionario[K, []float64], pos int, entradas TDALista.Lista[K]) float64 {
 	var primerTermino, segundoTermino float64
 	primerTermino = (1 - d) / float64(N)
+	st := &segundoTermino
 
-	for j := 0; j < N; j++ {
-		w := vertices[j]
-		if g.HayArista(w, vertice) && w != vertice {
-			cantAdyacentes := len(g.Adyacente(w))
-			segundoTermino += pageRanks.Obtener(w) / float64(cantAdyacentes)
-		}
-	}
+	entradas.Iterar(func(k K) bool {
+		cantAdyacentes := gradoSalidas.Obtener(k)
+		*st += pageRanks.Obtener(k)[pos] / float64(cantAdyacentes)
+		return true
+	})
 
 	segundoTermino *= d
 
 	return primerTermino + segundoTermino
 }
 
-func OrdenLectura[K comparable](grafo TDAGrafo.GrafoNoPesado[K], paginas []K) ([]K, error) {
+func OrdenLectura[K comparable](grafo TDAGrafo.GrafoNoPesado[K], paginas []K) (TDALista.Lista[K], error) {
 	dicc := TDADicc.CrearHash[K, bool]()
 	subgrafo := TDAGrafo.CrearGrafoNoPesado[K](true)
 	for _, pagina := range paginas {
@@ -498,18 +502,18 @@ func OrdenLectura[K comparable](grafo TDAGrafo.GrafoNoPesado[K], paginas []K) ([
 	return OrdenTopologico[K](subgrafo)
 }
 
-func OrdenTopologico[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([]K, error) {
+func OrdenTopologico[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDALista.Lista[K], error) {
+	res := TDALista.CrearListaEnlazada[K]()
 	if !g.Dirigido() {
-		return []K{}, ERROR.ErrorNoExisteOrden{}
+		return res, ERROR.ErrorNoExisteOrden{}
 	}
-	res := []K{}
 	grados := GradoDeEntrada[K](g)
 	q := TDACola.CrearColaEnlazada[K]()
 	for iter := grados.Iterador(); iter.HaySiguiente(); iter.Siguiente() {
 		vertice, grado := iter.VerActual()
 		if grado == 0 {
 			q.Encolar(vertice)
-			res = append(res, vertice)
+			res.InsertarUltimo(vertice)
 		}
 	}
 	for !q.EstaVacia() {
@@ -518,18 +522,18 @@ func OrdenTopologico[K comparable](g TDAGrafo.GrafoNoPesado[K]) ([]K, error) {
 			grado_anterior := grados.Obtener(w)
 			grados.Guardar(w, grado_anterior-1)
 			if grado_anterior-1 == 0 {
-				res = append(res, w)
+				res.InsertarUltimo(w)
 				q.Encolar(w)
 			}
 		}
 	}
-	if len(res) != len(g.ObtenerVertices()) {
-		return []K{}, ERROR.ErrorNoExisteOrden{}
+	if res.Largo() != len(g.ObtenerVertices()) {
+		return res, ERROR.ErrorNoExisteOrden{}
 	}
 	return res, nil
 }
 
-func CicloN[K comparable](g TDAGrafo.GrafoNoPesado[K], pagina K, saltos int) ([]K, error) {
+func CicloN[K comparable](g TDAGrafo.GrafoNoPesado[K], pagina K, saltos int) (TDALista.Lista[K], error) {
 	distancia := TDADicc.CrearHash[K, int]()
 	visitados := TDADicc.CrearHash[K, bool]()
 	distancia.Guardar(pagina, 0)
@@ -560,28 +564,29 @@ func CicloN[K comparable](g TDAGrafo.GrafoNoPesado[K], pagina K, saltos int) ([]
 	return dfs_cicloN[K](subgrafo, pagina, pagina, saltos)
 }
 
-func dfs_cicloN[K comparable](g TDAGrafo.Grafo[K], origen, destino K, dist int) ([]K, error) {
+func dfs_cicloN[K comparable](g TDAGrafo.Grafo[K], origen, destino K, dist int) (TDALista.Lista[K], error) {
 	var none K
+	var camino TDALista.Lista[K]
 	for _, w := range g.Adyacente(origen) {
 		padres := TDADicc.CrearHash[K, K]()
 		visitados := TDADicc.CrearHash[K, bool]()
 		padres.Guardar(origen, none)
 		padres.Guardar(w, origen)
 		var hayCamino bool
-		var camino []K
+
 		_dfs_cicloN_aux[K](g, 1, dist, w, destino, padres, &camino, &hayCamino, visitados)
 		if hayCamino {
 			return camino, nil
 		}
 	}
-	return []K{}, &ERROR.ErrorNoExisteRecorrido{}
+	return camino, &ERROR.ErrorNoExisteRecorrido{}
 }
 
-func _dfs_cicloN_aux[K comparable](g TDAGrafo.Grafo[K], contador, n int, v, destino K, padres TDADicc.Diccionario[K, K], camino *[]K, hayCamino *bool, visitados TDADicc.Diccionario[K, bool]) {
+func _dfs_cicloN_aux[K comparable](g TDAGrafo.Grafo[K], contador, n int, v, destino K, padres TDADicc.Diccionario[K, K], camino *TDALista.Lista[K], hayCamino *bool, visitados TDADicc.Diccionario[K, bool]) {
 	visitados.Guardar(v, true)
 	if contador == n && v == destino {
 		cam, _ := ReconstruirCamino[K](padres, destino, padres.Obtener(v))
-		cam = append(cam, v)
+		cam.InsertarUltimo(v)
 		*hayCamino = true
 		*camino = cam
 	} else {
