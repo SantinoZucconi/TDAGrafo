@@ -310,12 +310,9 @@ func Comunidades[K comparable](g TDAGrafo.GrafoNoPesado[K]) (TDADicc.Diccionario
 	for i, v := range g.ObtenerVertices() {
 		label.Guardar(v, i)
 	}
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 2; i++ {
 		for _, v := range g.ObtenerVertices() {
 			labelNeighbor := []int{}
-			for _, w := range g.Adyacente(v) {
-				labelNeighbor = append(labelNeighbor, label.Obtener(w))
-			}
 			if vEntradas.Pertenece(v) {
 				colaAdy := vEntradas.Obtener(v)
 				for !colaAdy.EstaVacia() {
